@@ -17,7 +17,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { db, storage } from '../../../firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { PropertyType, PropertyCategory } from '../../../types/property';
+import { PropertyType, PropertyCategory, PropertyFeature } from '../../../types/property';
 import { toast } from 'react-toastify';
 
 const AddProperty = () => {
@@ -116,8 +116,11 @@ const AddProperty = () => {
 
         // Create property document
         const propertyData = {
-          ...values,
+          title: values.title,
+          description: values.description,
           price: Number(values.price),
+          type: values.type,
+          category: values.category,
           bedrooms: values.bedrooms ? Number(values.bedrooms) : undefined,
           bathrooms: values.bathrooms ? Number(values.bathrooms) : undefined,
           area: Number(values.area),
@@ -126,6 +129,10 @@ const AddProperty = () => {
             address: values.address,
             city: values.city,
           },
+          features: values.features.map(feature => ({
+            name: feature,
+            value: true
+          })) as PropertyFeature[],
           sellerId: user.uid,
           sellerName: user.displayName,
           status: 'pending',
@@ -136,7 +143,7 @@ const AddProperty = () => {
           inquiries: 0,
         };
 
-        await addDoc(collection(db, 'properties'), propertyData);
+        const docRef = await addDoc(collection(db, 'properties'), propertyData);
         
         toast.success('Property listed successfully! Awaiting approval.');
         navigate('/dashboard/seller');
