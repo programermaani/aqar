@@ -12,6 +12,7 @@ const PropertyDetails = lazy(() => import('./pages/PropertyDetails'));
 const Login = lazy(() => import('./pages/auth/Login'));
 const Register = lazy(() => import('./pages/auth/Register'));
 const AdminDashboard = lazy(() => import('./pages/dashboard/admin/AdminDashboard'));
+const Users = lazy(() => import('./pages/dashboard/admin/Users'));
 const SellerDashboard = lazy(() => import('./pages/dashboard/seller/SellerDashboard'));
 const AddProperty = lazy(() => import('./pages/dashboard/seller/AddProperty'));
 const AllProperties = lazy(() => import('./pages/dashboard/seller/AllProperties'));
@@ -54,6 +55,12 @@ function App() {
           <Route path="dashboard/admin" element={
             <RoleBasedRoute allowedRoles={['admin']}>
               <AdminDashboard />
+            </RoleBasedRoute>
+          } />
+
+          <Route path="dashboard/admin/users" element={
+            <RoleBasedRoute allowedRoles={['admin']}>
+              <Users />
             </RoleBasedRoute>
           } />
           
