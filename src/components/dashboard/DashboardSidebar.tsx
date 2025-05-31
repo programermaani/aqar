@@ -51,8 +51,8 @@ const DashboardSidebar = () => {
       path: '/dashboard/properties',
       roles: ['admin', 'seller'],
       submenu: [
-        { title: 'All Properties', path: '/dashboard/properties' },
-        { title: 'Add Property', path: '/dashboard/properties/add' },
+        { title: 'All Properties', path: '/dashboard/seller/properties' },
+        { title: 'Add Property', path: '/dashboard/seller/properties/add' },
       ],
     },
     {
@@ -70,7 +70,7 @@ const DashboardSidebar = () => {
     {
       title: 'Users',
       icon: <Users className="w-5 h-5" />,
-      path: '/dashboard/users',
+      path: '/dashboard/admin/users',
       roles: ['admin'],
     },
     {
