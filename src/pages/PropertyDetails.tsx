@@ -574,7 +574,7 @@ const PropertyDetails = () => {
             <form onSubmit={handleContactSubmit} className="space-y-4">
               {contactType === 'offer' && (
                 <div>
-                  <label htmlFor="offerAmount" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="offerAmount\" className="block text-sm font-medium text-gray-700 mb-2">
                     مبلغ العرض (ريال سعودي)
                   </label>
                   <input
