@@ -10,9 +10,12 @@ import {
   Trash2,
   Edit,
   Plus,
+  MoreVertical,
+  TrendingUp,
+  Calendar
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Property, PropertyStatus, PropertyType, PropertyCategory } from '../../../types/property';
@@ -29,6 +32,7 @@ const AllProperties = () => {
   const [selectedCategory, setSelectedCategory] = useState<PropertyCategory | 'all'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'views' | 'price'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
 
   useEffect(() => {
     if (!user) return;
@@ -79,7 +83,7 @@ const AllProperties = () => {
         setProperties(propertiesData);
       } catch (error) {
         console.error('Error fetching properties:', error);
-        toast.error('Failed to load properties');
+        toast.error('فشل في تحميل العقارات');
       } finally {
         setLoading(false);
       }
@@ -89,15 +93,15 @@ const AllProperties = () => {
   }, [user, selectedStatus, selectedType, selectedCategory, sortBy, sortOrder, searchQuery]);
 
   const handleDelete = async (propertyId: string) => {
-    if (!confirm('Are you sure you want to delete this property?')) return;
+    if (!confirm('هل أنت متأكد من حذف هذا العقار؟')) return;
 
     try {
       await deleteDoc(doc(db, 'properties', propertyId));
       setProperties(properties.filter(p => p.id !== propertyId));
-      toast.success('Property deleted successfully');
+      toast.success('تم حذف العقار بنجاح');
     } catch (error) {
       console.error('Error deleting property:', error);
-      toast.error('Failed to delete property');
+      toast.error('فشل في حذف العقار');
     }
   };
 
@@ -114,104 +118,198 @@ const AllProperties = () => {
     }
   };
 
+  const getStatusText = (status: PropertyStatus) => {
+    switch (status) {
+      case 'approved':
+        return 'مُعتمد';
+      case 'pending':
+        return 'قيد المراجعة';
+      case 'rejected':
+        return 'مرفوض';
+      default:
+        return status;
+    }
+  };
+
+  const PropertyGridCard = ({ property }: { property: Property }) => (
+    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden">
+      <div className="relative">
+        <img
+          src={property.images[0]}
+          alt={property.title}
+          className="w-full h-48 object-cover"
+        />
+        <div className="absolute top-3 left-3">
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(property.status)}`}>
+            {getStatusText(property.status)}
+          </span>
+        </div>
+        <div className="absolute top-3 right-3">
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            property.category === 'rent' ? 'bg-accent-600 text-white' : 'bg-secondary-600 text-white'
+          }`}>
+            {property.category === 'rent' ? 'للإيجار' : 'للبيع'}
+          </span>
+        </div>
+      </div>
+      
+      <div className="p-4">
+        <h3 className="font-semibold text-gray-900 mb-2 line-clamp-1">{property.title}</h3>
+        <p className="text-sm text-gray-600 mb-3">{property.location.city}</p>
+        
+        <div className="flex justify-between items-center mb-4">
+          <span className="text-lg font-bold text-primary-600">
+            {property.price.toLocaleString('ar-SA')} ريال
+          </span>
+          <span className="text-sm text-gray-500 capitalize">{property.type}</span>
+        </div>
+        
+        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center">
+              <Eye className="h-4 w-4 mr-1" />
+              <span>{property.views}</span>
+            </div>
+            <div className="flex items-center">
+              <Heart className="h-4 w-4 mr-1" />
+              <span>{property.favorites}</span>
+            </div>
+            <div className="flex items-center">
+              <MessageSquare className="h-4 w-4 mr-1" />
+              <span>{property.inquiries}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <Link
+            to={`/properties/${property.id}`}
+            className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+          >
+            عرض العقار
+          </Link>
+          <div className="flex items-center space-x-2">
+            <Link
+              to={`/dashboard/properties/edit/${property.id}`}
+              className="p-1 text-gray-400 hover:text-primary-600"
+            >
+              <Edit className="h-4 w-4" />
+            </Link>
+            <button
+              onClick={() => handleDelete(property.id)}
+              className="p-1 text-gray-400 hover:text-error-600"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <DashboardLayout title="All Properties">
+    <DashboardLayout title="جميع العقارات">
       <div className="space-y-6">
         {/* Header with Actions */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <input
-              type="text"
-              placeholder="Search properties..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">عقاراتي</h1>
+            <p className="text-gray-600 mt-1">إدارة جميع عقاراتك المدرجة</p>
           </div>
           
           <Link
-            to="/dashboard/properties/add"
+            to="/dashboard/seller/properties/add"
             className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus className="h-5 w-5 mr-2" />
-            Add New Property
+            إضافة عقار جديد
           </Link>
         </div>
 
-        {/* Filters and Sort */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status
-              </label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as PropertyStatus | 'all')}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+        {/* Search and Filters */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="relative lg:col-span-2">
+              <input
+                type="text"
+                placeholder="البحث في العقارات..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Type
-              </label>
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value as PropertyType | 'all')}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="all">All Types</option>
-                <option value="apartment">Apartment</option>
-                <option value="villa">Villa</option>
-                <option value="office">Office</option>
-                <option value="land">Land</option>
-                <option value="commercial">Commercial</option>
-              </select>
-            </div>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value as PropertyStatus | 'all')}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">جميع الحالات</option>
+              <option value="pending">قيد المراجعة</option>
+              <option value="approved">مُعتمد</option>
+              <option value="rejected">مرفوض</option>
+            </select>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Category
-              </label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value as PropertyCategory | 'all')}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="all">All Categories</option>
-                <option value="rent">For Rent</option>
-                <option value="sale">For Sale</option>
-              </select>
-            </div>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value as PropertyType | 'all')}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">جميع الأنواع</option>
+              <option value="apartment">شقة</option>
+              <option value="villa">فيلا</option>
+              <option value="office">مكتب</option>
+              <option value="land">أرض</option>
+              <option value="commercial">تجاري</option>
+            </select>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sort By
-              </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value as PropertyCategory | 'all')}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">جميع الفئات</option>
+              <option value="rent">للإيجار</option>
+              <option value="sale">للبيع</option>
+            </select>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">ترتيب حسب:</label>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as 'date' | 'views' | 'price')}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 >
-                  <option value="date">Date</option>
-                  <option value="views">Views</option>
-                  <option value="price">Price</option>
+                  <option value="date">التاريخ</option>
+                  <option value="views">المشاهدات</option>
+                  <option value="price">السعر</option>
                 </select>
                 <button
                   onClick={() => setSortOrder(order => order === 'asc' ? 'desc' : 'asc')}
-                  className="p-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="p-1 border border-gray-300 rounded-md hover:bg-gray-50"
                 >
-                  <SortAsc className={`h-5 w-5 text-gray-500 transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
+                  <SortAsc className={`h-4 w-4 text-gray-500 transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
                 </button>
               </div>
+            </div>
+            
+            <div className="flex items-center space-x-2 mt-4 sm:mt-0">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-md ${viewMode === 'table' ? 'bg-primary-100 text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Filter className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-primary-100 text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Building2 className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>
@@ -219,48 +317,57 @@ const AllProperties = () => {
         {/* Properties List */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">جاري تحميل العقارات...</p>
+            </div>
           </div>
         ) : properties.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm">
             <Building2 className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-lg font-medium text-gray-900">No properties found</h3>
+            <h3 className="mt-2 text-lg font-medium text-gray-900">لا توجد عقارات</h3>
             <p className="mt-1 text-gray-500">
-              {searchQuery ? 'Try adjusting your search or filters' : 'Get started by adding your first property'}
+              {searchQuery ? 'جرب تعديل معايير البحث أو الفلاتر' : 'ابدأ بإضافة عقارك الأول'}
             </p>
             {!searchQuery && (
               <Link
-                to="/dashboard/properties/add"
+                to="/dashboard/seller/properties/add"
                 className="mt-4 inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 <Plus className="h-5 w-5 mr-2" />
-                Add Property
+                إضافة عقار
               </Link>
             )}
           </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {properties.map((property) => (
+              <PropertyGridCard key={property.id} property={property} />
+            ))}
+          </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Property
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      العقار
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      النوع
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Price
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      السعر
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      الحالة
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Stats
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      الإحصائيات
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      الإجراءات
                     </th>
                   </tr>
                 </thead>
@@ -269,15 +376,15 @@ const AllProperties = () => {
                     <tr key={property.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="h-10 w-10 flex-shrink-0">
+                          <div className="h-12 w-12 flex-shrink-0">
                             <img
-                              className="h-10 w-10 rounded-md object-cover"
+                              className="h-12 w-12 rounded-lg object-cover"
                               src={property.images[0]}
                               alt={property.title}
                             />
                           </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
+                          <div className="mr-4">
+                            <div className="text-sm font-medium text-gray-900 line-clamp-1">
                               {property.title}
                             </div>
                             <div className="text-sm text-gray-500">
@@ -291,20 +398,20 @@ const AllProperties = () => {
                           {property.type}
                         </div>
                         <div className="text-sm text-gray-500 capitalize">
-                          {property.category}
+                          {property.category === 'rent' ? 'للإيجار' : 'للبيع'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {property.price.toLocaleString()} SAR
+                        <div className="text-sm font-medium text-gray-900">
+                          {property.price.toLocaleString('ar-SA')} ريال
                         </div>
                         {property.category === 'rent' && (
-                          <div className="text-xs text-gray-500">per month</div>
+                          <div className="text-xs text-gray-500">شهرياً</div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(property.status)}`}>
-                          {property.status}
+                          {getStatusText(property.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -329,19 +436,19 @@ const AllProperties = () => {
                             to={`/properties/${property.id}`}
                             className="text-accent-600 hover:text-accent-900"
                           >
-                            View
+                            عرض
                           </Link>
                           <Link
-                            to={`/dashboard/properties/edit/${property.id}`}
+                            to={`/dashboard/seller/properties/edit/${property.id}`}
                             className="text-primary-600 hover:text-primary-900"
                           >
-                            Edit
+                            تعديل
                           </Link>
                           <button
                             onClick={() => handleDelete(property.id)}
                             className="text-error-600 hover:text-error-900"
                           >
-                            Delete
+                            حذف
                           </button>
                         </div>
                       </td>
